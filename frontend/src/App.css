@@ -1,0 +1,179 @@
+/* SpectroBot App Styles */
+
+.App {
+    min-height: 100vh;
+    background-color: #050505;
+}
+
+/* Override default link styles */
+.App-link {
+    color: #00FF94;
+}
+
+/* Custom animations */
+@keyframes slide-up {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-slide-up {
+    animation: slide-up 0.3s ease-out;
+}
+
+/* Dashboard grid */
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+}
+
+@media (min-width: 768px) {
+    .dashboard-grid {
+        grid-template-columns: repeat(12, 1fr);
+    }
+}
+
+/* Card hover effects */
+.card-interactive {
+    transition: all 0.2s ease;
+}
+
+.card-interactive:hover {
+    transform: translateY(-2px);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Price animations */
+@keyframes price-up {
+    0%, 100% {
+        background-color: transparent;
+    }
+    50% {
+        background-color: rgba(0, 255, 148, 0.15);
+    }
+}
+
+@keyframes price-down {
+    0%, 100% {
+        background-color: transparent;
+    }
+    50% {
+        background-color: rgba(255, 59, 48, 0.15);
+    }
+}
+
+.price-up {
+    animation: price-up 0.5s ease;
+}
+
+.price-down {
+    animation: price-down 0.5s ease;
+}
+
+/* Scrollbar styling for specific containers */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #27272A;
+    border-radius: 2px;
+}
+
+/* Glow effects for important elements */
+.glow-effect {
+    box-shadow: 0 0 20px rgba(0, 255, 148, 0.1);
+}
+
+/* Loading states */
+.loading-skeleton {
+    background: linear-gradient(90deg, #1a1a1a 25%, #2a2a2a 50%, #1a1a1a 75%);
+    background-size: 200% 100%;
+    animation: skeleton 1.5s ease-in-out infinite;
+}
+
+@keyframes skeleton {
+    0% {
+        background-position: 200% 0;
+    }
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+/* Trading panel specific styles */
+.trade-panel-buy {
+    border-color: rgba(0, 255, 148, 0.3);
+}
+
+.trade-panel-sell {
+    border-color: rgba(255, 59, 48, 0.3);
+}
+
+/* Chart container */
+.chart-container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+.chart-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    border-radius: 0.5rem;
+}
+
+/* Tooltip styles */
+.tooltip-content {
+    background: rgba(0, 0, 0, 0.9);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 8px 12px;
+}
+
+/* Status indicators */
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+.status-dot.active {
+    background-color: #00FF94;
+    box-shadow: 0 0 8px rgba(0, 255, 148, 0.5);
+}
+
+.status-dot.inactive {
+    background-color: #FF3B30;
+}
+
+/* Responsive adjustments */
+@media (max-width: 640px) {
+    .hide-mobile {
+        display: none;
+    }
+}
+
+/* Print styles */
+@media print {
+    .no-print {
+        display: none;
+    }
+}

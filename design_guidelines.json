@@ -1,0 +1,181 @@
+{
+  "project_name": "SpectroBot",
+  "design_philosophy": {
+    "identity": "The Performance Pro + Cyber-Swiss",
+    "core_principles": [
+      "Fusion over Imitation: Mix Fintech precision with Gaming HUD aesthetics.",
+      "Information Density: High density for data, but with breathing room for hierarchy.",
+      "The 'Tracing Beam': Use active glowing borders to guide the eye.",
+      "No Generic Gradients: Use deep, rich solids or subtle noise textures."
+    ],
+    "mood": "Precision, Speed, Trust, Intelligence, Dark, Cinematic."
+  },
+  "typography": {
+    "font_family": {
+      "heading": "Chivo, sans-serif",
+      "body": "Manrope, sans-serif",
+      "mono": "JetBrains Mono, monospace"
+    },
+    "scale": {
+      "h1": "text-4xl md:text-5xl font-black tracking-tight leading-none",
+      "h2": "text-3xl md:text-4xl font-bold tracking-tight",
+      "h3": "text-2xl font-bold tracking-tight",
+      "h4": "text-xl font-semibold tracking-wide uppercase",
+      "body": "text-base font-normal leading-relaxed",
+      "small": "text-sm font-medium opacity-80",
+      "mono_lg": "text-lg font-mono tracking-tight",
+      "mono_base": "text-base font-mono",
+      "mono_sm": "text-xs font-mono tracking-wide"
+    },
+    "weights": {
+      "light": 300,
+      "normal": 400,
+      "medium": 500,
+      "bold": 700,
+      "black": 900
+    },
+    "instructions": "Import fonts from Google Fonts in index.css: @import url('https://fonts.googleapis.com/css2?family=Chivo:wght@300;400;700;900&family=JetBrains+Mono:wght@400;500;700&family=Manrope:wght@300;400;500;700&display=swap'); Apply font-family in tailwind.config.js."
+  },
+  "colors": {
+    "theme": "dark",
+    "palette": {
+      "background": {
+        "default": "#050505",
+        "paper": "#0A0A0A",
+        "subtle": "#121212"
+      },
+      "foreground": {
+        "default": "#FFFFFF",
+        "muted": "#A1A1AA",
+        "dim": "#52525B"
+      },
+      "primary": {
+        "DEFAULT": "#FFFFFF",
+        "foreground": "#000000",
+        "hover": "#E5E5E5"
+      },
+      "secondary": {
+        "DEFAULT": "#1E1E20",
+        "foreground": "#FFFFFF",
+        "hover": "#27272A"
+      },
+      "accent": {
+        "neon_green": "#00FF94",
+        "neon_blue": "#007AFF",
+        "neon_red": "#FF3B30",
+        "warning": "#FFCC00"
+      },
+      "border": {
+        "default": "#27272A",
+        "active": "#3F3F46"
+      }
+    },
+    "semantic": {
+      "bullish": "text-[#00FF94] drop-shadow-[0_0_8px_rgba(0,255,148,0.3)]",
+      "bearish": "text-[#FF3B30] drop-shadow-[0_0_8px_rgba(255,59,48,0.3)]",
+      "neutral": "text-gray-400"
+    },
+    "instructions": "Update tailwind.config.js to use these exact hex codes for the 'dark' theme. Ensure 'background' is #050505 to avoid the generic grey look."
+  },
+  "layout_and_grid": {
+    "strategy": "Bento Grid Mode B (High Density)",
+    "container": {
+      "dashboard": "grid grid-cols-1 md:grid-cols-12 gap-4 p-4 md:p-6 h-screen overflow-hidden bg-background",
+      "marketing": "max-w-7xl mx-auto px-6 py-24"
+    },
+    "spacing": {
+      "section_gap": "gap-6",
+      "widget_padding": "p-4 md:p-6",
+      "internal_gap": "gap-3"
+    },
+    "component_rules": {
+      "card": "bg-card border border-border rounded-xl shadow-none overflow-hidden hover:border-primary/20 transition-colors duration-300",
+      "chart_container": "w-full h-full min-h-[300px] bg-card/50 rounded-lg p-4 relative"
+    }
+  },
+  "components": {
+    "button": {
+      "primary": "bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 rounded-md font-medium text-sm transition-all shadow-[0_0_10px_rgba(255,255,255,0.1)] hover:shadow-[0_0_20px_rgba(255,255,255,0.2)]",
+      "secondary": "bg-secondary text-secondary-foreground hover:bg-secondary/80 h-10 px-4 py-2 rounded-md font-medium text-sm",
+      "ghost": "hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 rounded-md font-medium text-sm",
+      "outline": "border border-input bg-transparent hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 rounded-md font-medium text-sm"
+    },
+    "input": {
+      "default": "flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+    },
+    "card": {
+      "base": "rounded-xl border border-border bg-card text-card-foreground shadow-sm",
+      "header": "flex flex-col space-y-1.5 p-6",
+      "content": "p-6 pt-0"
+    },
+    "badge": {
+      "default": "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
+      "outline": "text-foreground border-border"
+    },
+    "custom_components": {
+      "TracingBeam": "A container with a glowing gradient border that follows the mouse or highlights active state.",
+      "GlassPanel": "bg-black/40 backdrop-blur-xl border border-white/10 shadow-xl",
+      "MetricCard": "Displays a single KPI with a sparkline or trend indicator. Uses 'mono' font for values."
+    }
+  },
+  "visual_enhancers": {
+    "shadows": {
+      "glow": "0 0 20px rgba(0, 255, 148, 0.15)",
+      "depth": "0 10px 30px -10px rgba(0,0,0,0.5)"
+    },
+    "borders": {
+      "subtle": "1px solid rgba(255,255,255,0.08)",
+      "active": "1px solid rgba(255,255,255,0.2)"
+    },
+    "textures": {
+      "noise": "url('/assets/noise.png') opacity-5"
+    }
+  },
+  "assets": {
+    "image_urls": {
+      "hero_background": "https://images.unsplash.com/photo-1762279388956-1c098163a2a8?crop=entropy&cs=srgb&fm=jpg&q=85",
+      "abstract_mesh": "https://images.unsplash.com/photo-1771793231904-a516cd3baff4?crop=entropy&cs=srgb&fm=jpg&q=85",
+      "matrix_code": "https://images.pexels.com/photos/1089438/pexels-photo-1089438.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "chart_grid": "https://images.pexels.com/photos/6203470/pexels-photo-6203470.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940"
+    },
+    "icons": {
+      "library": "lucide-react",
+      "style": "stroke-width: 1.5px; size: 18px or 20px"
+    }
+  },
+  "motion": {
+    "reduced_motion": "respect-prefers-reduced-motion",
+    "hover_effects": "transition-all duration-200 ease-out hover:-translate-y-0.5",
+    "page_transition": "initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}",
+    "chart_animation": "recharts animationDuration={1000} animationEasing='ease-in-out'"
+  },
+  "accessibility": {
+    "contrast": "Ensure text is #E5E5E5 or #FFFFFF on dark backgrounds.",
+    "focus_states": "Visible focus ring with neon color (e.g., ring-2 ring-neon-blue).",
+    "semantic_html": "Use <main>, <section>, <article>, <nav> correctly."
+  },
+  "libraries": {
+    "charts": "recharts",
+    "icons": "lucide-react",
+    "dates": "date-fns",
+    "state": "zustand (recommended for trade state) or react-query (for API)",
+    "forms": "react-hook-form + zod",
+    "ui": "shadcn/ui (radix-ui primitives)"
+  },
+  "instructions_to_main_agent": [
+    "INSTALL: yarn add lucide-react recharts date-fns clsx tailwind-merge framer-motion",
+    "SETUP: Configure tailwind.config.js with the colors provided in 'colors.palette'.",
+    "FONTS: Add the Google Fonts import to index.css immediately.",
+    "LAYOUT: Build the 'DashboardLayout' using the Bento Grid strategy defined.",
+    "COMPONENTS: When using Shadcn components, override their default styling to match the 'Cyber-Swiss' aesthetic (sharper corners, darker backgrounds, thinner borders).",
+    "DATA: Mock the trading data for now, but structure it to easily swap with Binance API responses later.",
+    "TESTING: Add data-testid to all interactive elements (buttons, inputs, trade-actions)."
+  ],
+  "universal_guidelines": [
+    "Do not use gradients for main backgrounds; use them for borders or text accents only.",
+    "Avoid 'Inter' for headings. Use 'Chivo'.",
+    "Use 'JetBrains Mono' for all financial data (prices, percentages, volumes).",
+    "Ensure the 'Buy' button is Green/Teal and 'Sell' is Red/Rose, but keep them accessible.",
+    "Create a 'Settings' page that allows toggling 'Pro Mode' (denser data) vs 'Lite Mode' (cleaner UI)."
+  ]
+}
