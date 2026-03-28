@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4.1-mini")
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://ollama:11434")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.2:3b")
+OLLAMA_TIMEOUT_SECONDS = float(os.environ.get("OLLAMA_TIMEOUT_SECONDS", "180"))
 ENABLE_OLLAMA_FALLBACK = os.environ.get("ENABLE_OLLAMA_FALLBACK", "true").lower() == "true"
 
 # Language-specific system messages
@@ -172,7 +173,7 @@ async def _query_openai(system_message: str, user_prompt: str) -> Dict:
 
 async def _query_ollama(system_message: str, user_prompt: str) -> Dict:
     try:
-        async with httpx.AsyncClient(timeout=90.0) as client:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(OLLAMA_TIMEOUT_SECONDS)) as client:
             # Try modern chat endpoint first.
             chat_response = await client.post(
                 f"{OLLAMA_BASE_URL.rstrip('/')}/api/chat",
