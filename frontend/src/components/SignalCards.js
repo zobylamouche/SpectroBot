@@ -287,6 +287,8 @@ export const MLPredictionCard = () => {
 export const AIAnalysisCard = () => {
   const { aiAnalysis, loading, fetchAIAnalysis, selectedSymbol } = useTradingContext();
   const { t, getLanguageName } = useLanguage();
+  const provider = aiAnalysis?.llm_analysis?.provider || 'auto';
+  const model = aiAnalysis?.llm_analysis?.model || '-';
   
   const handleRefresh = () => {
     const langName = getLanguageName();
@@ -300,6 +302,14 @@ export const AIAnalysisCard = () => {
           <Sparkles className="w-4 h-4 text-neon-blue" />
           {t('dashboard.aiAnalysis')}
         </CardTitle>
+        <div className="hidden md:flex items-center gap-2 text-[10px] text-muted-foreground">
+          <span className="rounded-md border border-border bg-secondary/40 px-2 py-1">
+            {provider}
+          </span>
+          <span className="rounded-md border border-border bg-secondary/40 px-2 py-1">
+            {model}
+          </span>
+        </div>
         <Button 
           variant="ghost" 
           size="sm"
