@@ -36,6 +36,7 @@ import Dashboard from './pages/Dashboard';
 import Trading from './pages/Trading';
 import Backtest from './pages/Backtest';
 import SettingsPage from './pages/SettingsPage';
+import { BACKEND_URL } from './config/api';
 
 import './App.css';
 
@@ -44,7 +45,7 @@ const Footer = () => {
   const { t } = useLanguage();
   const [versionInfo, setVersionInfo] = useState(null);
   const [showChangelog, setShowChangelog] = useState(false);
-  const API_URL = process.env.REACT_APP_BACKEND_URL;
+  const API_URL = BACKEND_URL;
   
   useEffect(() => {
     const fetchVersion = async () => {

@@ -77,7 +77,7 @@ export const PriceChart = ({ height = 300 }) => {
     }));
   }, [klines, indicators]);
   
-  if (loading.klines) {
+  if (loading.klines && chartData.length === 0) {
     return (
       <div className="w-full flex items-center justify-center" style={{ height, minHeight: height }} data-testid="price-chart-loading">
         <div className="animate-pulse text-muted-foreground">Loading chart...</div>
@@ -129,6 +129,7 @@ export const PriceChart = ({ height = 300 }) => {
             stroke="#00FF94"
             strokeWidth={2}
             fill="url(#priceGradient)"
+            isAnimationActive={false}
           />
           {indicators?.ema_short && (
             <Line
@@ -138,6 +139,7 @@ export const PriceChart = ({ height = 300 }) => {
               strokeWidth={1}
               dot={false}
               strokeDasharray="5 5"
+              isAnimationActive={false}
             />
           )}
           {indicators?.ema_long && (
@@ -148,6 +150,7 @@ export const PriceChart = ({ height = 300 }) => {
               strokeWidth={1}
               dot={false}
               strokeDasharray="5 5"
+              isAnimationActive={false}
             />
           )}
         </AreaChart>
@@ -168,7 +171,7 @@ export const RSIChart = ({ height = 120 }) => {
     })).filter(d => d.rsi !== null && d.rsi !== undefined);
   }, [indicators, klines]);
   
-  if (loading.indicators || chartData.length === 0) {
+  if (chartData.length === 0) {
     return (
       <div className="w-full flex items-center justify-center text-muted-foreground text-sm" style={{ height, minHeight: height }}>
         Loading RSI...
@@ -210,6 +213,7 @@ export const RSIChart = ({ height = 120 }) => {
             stroke="#007AFF"
             strokeWidth={1.5}
             fill="url(#rsiGradient)"
+            isAnimationActive={false}
           />
         </AreaChart>
       </ResponsiveContainer>
@@ -231,7 +235,7 @@ export const MACDChart = ({ height = 120 }) => {
     })).filter(d => d.histogram !== null && d.histogram !== undefined);
   }, [indicators, klines]);
   
-  if (loading.indicators || chartData.length === 0) {
+  if (chartData.length === 0) {
     return (
       <div className="w-full flex items-center justify-center text-muted-foreground text-sm" style={{ height, minHeight: height }}>
         Loading MACD...
@@ -261,6 +265,7 @@ export const MACDChart = ({ height = 120 }) => {
           <Bar
             dataKey="histogram"
             fill={(entry) => entry.histogram >= 0 ? '#00FF94' : '#FF3B30'}
+            isAnimationActive={false}
           >
             {chartData.map((entry, index) => (
               <Bar 
@@ -275,6 +280,7 @@ export const MACDChart = ({ height = 120 }) => {
             stroke="#007AFF"
             strokeWidth={1.5}
             dot={false}
+            isAnimationActive={false}
           />
           <Line
             type="monotone"
@@ -282,6 +288,7 @@ export const MACDChart = ({ height = 120 }) => {
             stroke="#FFCC00"
             strokeWidth={1.5}
             dot={false}
+            isAnimationActive={false}
           />
         </ComposedChart>
       </ResponsiveContainer>
@@ -352,6 +359,7 @@ export const EquityCurveChart = ({ data, height = 200 }) => {
             stroke={isProfit ? '#00FF94' : '#FF3B30'}
             strokeWidth={2}
             fill="url(#equityGradient)"
+            isAnimationActive={false}
           />
         </AreaChart>
       </ResponsiveContainer>

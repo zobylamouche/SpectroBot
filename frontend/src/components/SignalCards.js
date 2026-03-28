@@ -43,7 +43,7 @@ export const SignalCard = () => {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        {loading.signal ? (
+        {loading.signal && !signal ? (
           <div className="flex items-center justify-center h-24">
             <div className="animate-pulse text-muted-foreground">{t('common.loading')}</div>
           </div>

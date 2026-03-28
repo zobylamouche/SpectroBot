@@ -398,5 +398,5 @@ class SimulatedMarketService:
         self.running = False
 
 
-# Use simulated service by default (can be switched to binance_service)
-market_service = SimulatedMarketService()
+# Use live Binance service by default.
+market_service = binance_service

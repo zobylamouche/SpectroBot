@@ -1,7 +1,14 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { API_BASE } from '../config/api';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
+const API = API_BASE;
+const LIVE_DEFAULT_WATCHLIST = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT'];
+
+const isLiveCryptoSymbol = (symbol) => typeof symbol === 'string' && symbol.toUpperCase().endsWith('USDT');
+const sanitizeWatchlist = (symbols = []) => {
+  const normalized = symbols.map((s) => s.toUpperCase()).filter(isLiveCryptoSymbol);
+  return normalized.length > 0 ? [...new Set(normalized)] : LIVE_DEFAULT_WATCHLIST;
+};
 
 // Trading Context
 const TradingContext = createContext(null);
@@ -19,7 +26,7 @@ export const TradingProvider = ({ children }) => {
   const [prices, setPrices] = useState({});
   const [selectedSymbol, setSelectedSymbol] = useState('BTCUSDT');
   const [symbols, setSymbols] = useState([]);
-  const [watchlist, setWatchlist] = useState(['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT']);
+  const [watchlist, setWatchlist] = useState(LIVE_DEFAULT_WATCHLIST);
   
   // Chart data
   const [klines, setKlines] = useState([]);
@@ -56,6 +63,8 @@ export const TradingProvider = ({ children }) => {
   const wsRef = useRef(null);
   const [wsConnected, setWsConnected] = useState(false);
   const pollingRef = useRef(null);
+  const liveRefreshRef = useRef(null);
+  const mlRefreshRef = useRef(null);
   
   // Fetch watchlist on mount
   useEffect(() => {
@@ -64,10 +73,11 @@ export const TradingProvider = ({ children }) => {
         const response = await fetch(`${API}/watchlist`);
         const data = await response.json();
         if (data.watchlist) {
-          setWatchlist(data.watchlist);
+          setWatchlist(sanitizeWatchlist(data.watchlist));
         }
       } catch (error) {
         console.error('Error fetching watchlist:', error);
+        setWatchlist(LIVE_DEFAULT_WATCHLIST);
       }
     };
     fetchWatchlist();
@@ -76,21 +86,29 @@ export const TradingProvider = ({ children }) => {
   // Fetch prices via polling (WebSocket not available through Kubernetes ingress)
   const startPricePolling = useCallback(() => {
     const fetchPrices = async () => {
+      // Use watchlist for price polling
+      const symbolsToFetch = sanitizeWatchlist(watchlist);
+      const requests = symbolsToFetch.map((symbol) => fetch(`${API}/assets/ticker/${symbol}`));
+
       try {
-        // Use watchlist for price polling
-        const symbolsToFetch = watchlist.length > 0 ? watchlist : ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT'];
-        for (const symbol of symbolsToFetch) {
-          // Use the multi-asset endpoint for all assets
-          const response = await fetch(`${API}/assets/ticker/${symbol}`);
-          const data = await response.json();
+        const responses = await Promise.allSettled(requests);
+        let successCount = 0;
+
+        for (const res of responses) {
+          if (res.status !== 'fulfilled' || !res.value.ok) {
+            continue;
+          }
+          const data = await res.value.json();
           if (data.success) {
+            successCount += 1;
             setPrices(prev => ({
               ...prev,
               [data.symbol]: data
             }));
           }
         }
-        setWsConnected(true);
+
+        setWsConnected(successCount > 0);
       } catch (error) {
         console.error('Price polling error:', error);
         setWsConnected(false);
@@ -110,6 +128,17 @@ export const TradingProvider = ({ children }) => {
       pollingRef.current = null;
     }
   }, []);
+
+  const stopLiveRefresh = useCallback(() => {
+    if (liveRefreshRef.current) {
+      clearInterval(liveRefreshRef.current);
+      liveRefreshRef.current = null;
+    }
+    if (mlRefreshRef.current) {
+      clearInterval(mlRefreshRef.current);
+      mlRefreshRef.current = null;
+    }
+  }, []);
   
   // API calls
   const fetchSymbols = useCallback(async () => {
@@ -124,23 +153,66 @@ export const TradingProvider = ({ children }) => {
     }
   }, []);
   
-  const fetchKlines = useCallback(async (symbol = selectedSymbol, int = timeInterval, limit = 100) => {
-    setLoading(prev => ({ ...prev, klines: true }));
+  const fetchKlines = useCallback(async (
+    symbol = selectedSymbol,
+    int = timeInterval,
+    limit = 100,
+    options = {}
+  ) => {
+    const { incremental = false, silent = false, maxPoints = 100 } = options;
+
+    if (!silent) {
+      setLoading(prev => ({ ...prev, klines: true }));
+    }
+
     try {
       const response = await fetch(`${API}/market/klines/${symbol}?interval=${int}&limit=${limit}`);
       const data = await response.json();
-      if (data.success) {
-        setKlines(data.data);
+
+      if (data.success && Array.isArray(data.data)) {
+        if (!incremental) {
+          setKlines(data.data);
+          return;
+        }
+
+        // Merge only the latest candles to avoid full chart redraw/flicker.
+        setKlines((prev) => {
+          if (!Array.isArray(prev) || prev.length === 0) {
+            return data.data.slice(-maxPoints);
+          }
+
+          const mapByTimestamp = new Map(prev.map((k) => [k.timestamp, k]));
+          for (const candle of data.data) {
+            mapByTimestamp.set(candle.timestamp, candle);
+          }
+
+          const merged = Array.from(mapByTimestamp.values())
+            .sort((a, b) => a.timestamp - b.timestamp)
+            .slice(-maxPoints);
+
+          return merged;
+        });
       }
     } catch (error) {
       console.error('Error fetching klines:', error);
     } finally {
-      setLoading(prev => ({ ...prev, klines: false }));
+      if (!silent) {
+        setLoading(prev => ({ ...prev, klines: false }));
+      }
     }
   }, [selectedSymbol, timeInterval]);
   
-  const fetchIndicators = useCallback(async (symbol = selectedSymbol, int = timeInterval) => {
-    setLoading(prev => ({ ...prev, indicators: true }));
+  const fetchIndicators = useCallback(async (
+    symbol = selectedSymbol,
+    int = timeInterval,
+    options = {}
+  ) => {
+    const { silent = false } = options;
+
+    if (!silent) {
+      setLoading(prev => ({ ...prev, indicators: true }));
+    }
+
     try {
       const response = await fetch(`${API}/indicators/calculate?symbol=${symbol}&interval=${int}&limit=100`, {
         method: 'POST',
@@ -156,12 +228,15 @@ export const TradingProvider = ({ children }) => {
     } catch (error) {
       console.error('Error fetching indicators:', error);
     } finally {
-      setLoading(prev => ({ ...prev, indicators: false }));
+      if (!silent) {
+        setLoading(prev => ({ ...prev, indicators: false }));
+      }
     }
   }, [selectedSymbol, timeInterval]);
   
-  const fetchSignal = useCallback(async (symbol = selectedSymbol, strategy = 'composite') => {
-    setLoading(prev => ({ ...prev, signal: true }));
+  const fetchSignal = useCallback(async (symbol = selectedSymbol, strategy = 'composite', options = {}) => {
+    const { silent = false } = options;
+    if (!silent) setLoading(prev => ({ ...prev, signal: true }));
     try {
       const response = await fetch(`${API}/strategies/signal?symbol=${symbol}&interval=${timeInterval}&strategy_name=${strategy}`, {
         method: 'POST',
@@ -172,7 +247,7 @@ export const TradingProvider = ({ children }) => {
     } catch (error) {
       console.error('Error fetching signal:', error);
     } finally {
-      setLoading(prev => ({ ...prev, signal: false }));
+      if (!silent) setLoading(prev => ({ ...prev, signal: false }));
     }
   }, [selectedSymbol, timeInterval]);
   
@@ -354,8 +429,9 @@ export const TradingProvider = ({ children }) => {
     
     return () => {
       stopPricePolling();
+      stopLiveRefresh();
     };
-  }, [startPricePolling, stopPricePolling, fetchSymbols, fetchSettings]);
+  }, [startPricePolling, stopPricePolling, stopLiveRefresh, fetchSymbols, fetchSettings]);
   
   // Fetch data when symbol or timeInterval changes
   useEffect(() => {
@@ -363,8 +439,29 @@ export const TradingProvider = ({ children }) => {
       fetchKlines();
       fetchIndicators();
       fetchSignal();
+
+      stopLiveRefresh();
+
+      // Refresh chart + indicators + strategy signal continuously.
+      liveRefreshRef.current = setInterval(() => {
+        fetchKlines(selectedSymbol, timeInterval, 3, {
+          incremental: true,
+          silent: true,
+          maxPoints: 100
+        });
+        fetchIndicators(selectedSymbol, timeInterval, { silent: true });
+        fetchSignal(selectedSymbol, 'composite', { silent: true });
+      }, 5000);
+
+      // Refresh ML prediction less frequently to reduce load.
+      mlRefreshRef.current = setInterval(() => {
+        fetchMLPrediction(selectedSymbol);
+      }, 15000);
     }
-  }, [selectedSymbol, timeInterval, fetchKlines, fetchIndicators, fetchSignal]);
+    return () => {
+      stopLiveRefresh();
+    };
+  }, [selectedSymbol, timeInterval, stopLiveRefresh, fetchKlines, fetchIndicators, fetchSignal, fetchMLPrediction]);
   
   const value = {
     // State

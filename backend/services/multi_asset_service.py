@@ -21,6 +21,11 @@ ASSET_TYPES = {
     "index": "Index"
 }
 
+# Only crypto currently has a real-time provider implemented.
+REALTIME_ASSET_TYPES = {
+    "crypto": ASSET_TYPES["crypto"]
+}
+
 # Default assets by category
 DEFAULT_ASSETS = {
     "crypto": [
@@ -96,6 +101,7 @@ class MultiAssetService:
     def __init__(self):
         self.session: Optional[aiohttp.ClientSession] = None
         self.custom_assets: Dict[str, List[Dict]] = {}
+        self.crypto_ticker_cache: Dict[str, Dict] = {}
         self._initialize_price_history()
     
     def _initialize_price_history(self):
@@ -194,178 +200,126 @@ class MultiAssetService:
         """Get current price for any asset type"""
         symbol = symbol.upper()
         asset_type = self.get_asset_type(symbol)
+
+        if asset_type != "crypto":
+            return {
+                "success": False,
+                "error": f"No real-time provider configured for asset type '{asset_type}'"
+            }
         
         try:
-            if asset_type == "crypto":
-                # Use Binance API for crypto
-                session = await self.get_session()
-                url = f"https://api.binance.com/api/v3/ticker/price"
-                params = {"symbol": symbol}
-                
-                async with session.get(url, params=params) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        return {
-                            "success": True,
-                            "symbol": symbol,
-                            "name": self._get_asset_name(symbol),
-                            "type": asset_type,
-                            "price": float(data["price"]),
-                            "currency": "USDT",
-                            "timestamp": datetime.utcnow().isoformat()
-                        }
-            
-            # For other assets, use simulated data
-            price_data = self._simulate_price_movement(symbol)
-            return {
-                "success": True,
-                "symbol": symbol,
-                "name": self._get_asset_name(symbol),
-                "type": asset_type,
-                "currency": "USD",
-                "timestamp": datetime.utcnow().isoformat(),
-                **price_data
-            }
-            
+            session = await self.get_session()
+            url = f"https://api.binance.com/api/v3/ticker/price"
+            params = {"symbol": symbol}
+
+            async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=5)) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    return {
+                        "success": True,
+                        "symbol": symbol,
+                        "name": self._get_asset_name(symbol),
+                        "type": asset_type,
+                        "price": float(data["price"]),
+                        "currency": "USDT",
+                        "data_source": "binance",
+                        "timestamp": datetime.utcnow().isoformat()
+                    }
+
+                error = await response.text()
+                return {
+                    "success": False,
+                    "error": f"Binance price error {response.status}: {error}"
+                }
+        except asyncio.TimeoutError:
+            return {"success": False, "error": f"Timeout fetching {symbol}"}
         except Exception as e:
             logger.error(f"Error fetching price for {symbol}: {str(e)}")
-            # Fallback to simulation
-            price_data = self._simulate_price_movement(symbol)
-            return {
-                "success": True,
-                "symbol": symbol,
-                "name": self._get_asset_name(symbol),
-                "type": asset_type,
-                "currency": "USD",
-                "timestamp": datetime.utcnow().isoformat(),
-                **price_data
-            }
-    
+            return {"success": False, "error": str(e)}
+
     async def get_asset_ticker(self, symbol: str) -> Dict:
         """Get 24h ticker for any asset"""
         symbol = symbol.upper()
         asset_type = self.get_asset_type(symbol)
-        
-        try:
-            if asset_type == "crypto":
-                session = await self.get_session()
-                url = f"https://api.binance.com/api/v3/ticker/24hr"
-                params = {"symbol": symbol}
-                
-                async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=5)) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        return {
-                            "success": True,
-                            "symbol": symbol,
-                            "name": self._get_asset_name(symbol),
-                            "type": asset_type,
-                            "price": float(data["lastPrice"]),
-                            "price_change": float(data["priceChange"]),
-                            "price_change_pct": float(data["priceChangePercent"]),
-                            "high_24h": float(data["highPrice"]),
-                            "low_24h": float(data["lowPrice"]),
-                            "volume_24h": float(data["volume"]),
-                            "currency": "USDT",
-                            "timestamp": datetime.utcnow().isoformat()
-                        }
-                    else:
-                        logger.warning(f"Binance API returned status {response.status} for {symbol}")
-            
-            # Simulated ticker for other assets
-            price_data = self._simulate_price_movement(symbol)
+
+        if asset_type != "crypto":
             return {
-                "success": True,
-                "symbol": symbol,
-                "name": self._get_asset_name(symbol),
-                "type": asset_type,
-                "currency": "USD",
-                "timestamp": datetime.utcnow().isoformat(),
-                **price_data
+                "success": False,
+                "error": f"No real-time provider configured for asset type '{asset_type}'"
             }
-            
+
+        try:
+            session = await self.get_session()
+            url = f"https://api.binance.com/api/v3/ticker/24hr"
+            params = {"symbol": symbol}
+
+            async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=5)) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    return {
+                        "success": True,
+                        "symbol": symbol,
+                        "name": self._get_asset_name(symbol),
+                        "type": asset_type,
+                        "price": float(data["lastPrice"]),
+                        "price_change": float(data["priceChange"]),
+                        "price_change_pct": float(data["priceChangePercent"]),
+                        "high_24h": float(data["highPrice"]),
+                        "low_24h": float(data["lowPrice"]),
+                        "volume_24h": float(data["volume"]),
+                        "currency": "USDT",
+                        "data_source": "binance",
+                        "timestamp": datetime.utcnow().isoformat()
+                    }
+
+                error = await response.text()
+                return {
+                    "success": False,
+                    "error": f"Binance ticker error {response.status}: {error}"
+                }
         except asyncio.TimeoutError:
             logger.error(f"Timeout fetching ticker for {symbol}")
-            # For crypto, don't fallback to simulation - return error
-            if asset_type == "crypto":
-                return {"success": False, "error": f"Timeout fetching {symbol}"}
-            price_data = self._simulate_price_movement(symbol)
-            return {
-                "success": True,
-                "symbol": symbol,
-                "name": self._get_asset_name(symbol),
-                "type": asset_type,
-                "currency": "USD",
-                "timestamp": datetime.utcnow().isoformat(),
-                **price_data
-            }
+            return {"success": False, "error": f"Timeout fetching {symbol}"}
         except Exception as e:
             logger.error(f"Error fetching ticker for {symbol}: {str(e)}")
-            # For crypto, don't fallback to simulation
-            if asset_type == "crypto":
-                return {"success": False, "error": str(e)}
-            price_data = self._simulate_price_movement(symbol)
-            return {
-                "success": True,
-                "symbol": symbol,
-                "name": self._get_asset_name(symbol),
-                "type": asset_type,
-                "currency": "USD",
-                "timestamp": datetime.utcnow().isoformat(),
-                **price_data
-            }
-                "timestamp": datetime.utcnow().isoformat(),
-                **price_data
-            }
-            
-        except Exception as e:
-            logger.error(f"Error fetching ticker for {symbol}: {str(e)}")
-            price_data = self._simulate_price_movement(symbol)
-            return {
-                "success": True,
-                "symbol": symbol,
-                "name": self._get_asset_name(symbol),
-                "type": asset_type,
-                "currency": "USD",
-                "timestamp": datetime.utcnow().isoformat(),
-                **price_data
-            }
+            return {"success": False, "error": str(e)}
     
     async def generate_klines(self, symbol: str, interval: str = "1h", limit: int = 100) -> List[Dict]:
         """Generate OHLCV klines for any asset"""
         symbol = symbol.upper()
         asset_type = self.get_asset_type(symbol)
+
+        if asset_type != "crypto":
+            return []
         
         # For crypto, try Binance first
-        if asset_type == "crypto":
-            try:
-                session = await self.get_session()
-                url = f"https://api.binance.com/api/v3/klines"
-                params = {
-                    "symbol": symbol,
-                    "interval": interval,
-                    "limit": limit
-                }
-                
-                async with session.get(url, params=params) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        klines = []
-                        for k in data:
-                            klines.append({
-                                "timestamp": k[0],
-                                "open": float(k[1]),
-                                "high": float(k[2]),
-                                "low": float(k[3]),
-                                "close": float(k[4]),
-                                "volume": float(k[5])
-                            })
-                        return klines
-            except Exception as e:
-                logger.error(f"Binance klines error: {str(e)}")
-        
-        # Generate simulated klines for other assets
-        return self._generate_simulated_klines(symbol, interval, limit)
+        try:
+            session = await self.get_session()
+            url = f"https://api.binance.com/api/v3/klines"
+            params = {
+                "symbol": symbol,
+                "interval": interval,
+                "limit": limit
+            }
+
+            async with session.get(url, params=params, timeout=aiohttp.ClientTimeout(total=5)) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    klines = []
+                    for k in data:
+                        klines.append({
+                            "timestamp": k[0],
+                            "open": float(k[1]),
+                            "high": float(k[2]),
+                            "low": float(k[3]),
+                            "close": float(k[4]),
+                            "volume": float(k[5])
+                        })
+                    return klines
+        except Exception as e:
+            logger.error(f"Binance klines error: {str(e)}")
+
+        return []
     
     def _generate_simulated_klines(self, symbol: str, interval: str, limit: int) -> List[Dict]:
         """Generate simulated historical klines"""
@@ -436,22 +390,25 @@ class MultiAssetService:
     
     def get_all_available_assets(self) -> Dict[str, List[Dict]]:
         """Get all available assets by category"""
-        result = {}
-        for category, assets in DEFAULT_ASSETS.items():
-            result[category] = list(assets)
+        result = {
+            "crypto": list(DEFAULT_ASSETS.get("crypto", []))
+        }
         
-        # Add custom assets
-        for category, assets in self.custom_assets.items():
-            if category in result:
-                result[category].extend(assets)
-            else:
-                result[category] = list(assets)
+        # Add custom crypto assets only.
+        if "crypto" in self.custom_assets:
+            result["crypto"].extend(self.custom_assets["crypto"])
         
         return result
     
     def add_custom_asset(self, symbol: str, name: str, asset_type: str, currency: str = "USD", base_price: float = None) -> Dict:
         """Add a custom asset"""
         symbol = symbol.upper()
+
+        if asset_type != "crypto":
+            return {
+                "success": False,
+                "error": "Only crypto assets are supported in real-time mode"
+            }
         
         if asset_type not in self.custom_assets:
             self.custom_assets[asset_type] = []
@@ -469,14 +426,6 @@ class MultiAssetService:
         }
         
         self.custom_assets[asset_type].append(new_asset)
-        
-        # Initialize price if provided
-        if base_price:
-            SIMULATED_PRICES[symbol] = base_price
-            price_history[symbol] = {
-                "price": base_price,
-                "last_update": datetime.utcnow()
-            }
         
         return {"success": True, "asset": new_asset}
     

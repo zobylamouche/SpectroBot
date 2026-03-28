@@ -28,7 +28,7 @@ from services.ml_engine import ml_engine
 from services.llm_service import analyze_market_with_llm, explain_trading_decision
 from services.backtesting import run_backtest, optimize_parameters
 from services.binance_service import market_service
-from services.multi_asset_service import multi_asset_service, DEFAULT_ASSETS, ASSET_TYPES
+from services.multi_asset_service import multi_asset_service, DEFAULT_ASSETS, ASSET_TYPES, REALTIME_ASSET_TYPES
 from version import get_version_info, APP_VERSION
 
 # Configure logging
@@ -39,9 +39,25 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # MongoDB connection
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
+client = AsyncIOMotorClient(mongo_url, serverSelectionTimeoutMS=2000)
+db = client[os.environ.get('DB_NAME', 'spectrobot')]
+
+# In-memory fallback stores (used when MongoDB is unavailable)
+_portfolios_store: Dict[str, dict] = {}
+_trades_store: Dict[str, list] = {}  # portfolio_id -> list of trades
+_mongo_available: Optional[bool] = None  # None = not yet tested
+
+async def _check_mongo() -> bool:
+    global _mongo_available
+    if _mongo_available is None:
+        try:
+            await client.admin.command('ping')
+            _mongo_available = True
+        except Exception:
+            _mongo_available = False
+            logger.warning("MongoDB unavailable – using in-memory portfolio storage")
+    return _mongo_available
 
 # WebSocket connection manager
 class ConnectionManager:
@@ -247,20 +263,20 @@ async def get_app_version():
 @api_router.get("/assets/types")
 async def get_asset_types():
     """Get all available asset types"""
-    return {"types": ASSET_TYPES}
+    return {"types": REALTIME_ASSET_TYPES}
 
 @api_router.get("/assets/all")
 async def get_all_assets():
     """Get all available assets grouped by type"""
     return {
         "assets": multi_asset_service.get_all_available_assets(),
-        "types": ASSET_TYPES
+        "types": REALTIME_ASSET_TYPES
     }
 
 @api_router.get("/assets/default")
 async def get_default_assets():
     """Get default assets by category"""
-    return {"assets": DEFAULT_ASSETS}
+    return {"assets": {"crypto": DEFAULT_ASSETS.get("crypto", [])}}
 
 @api_router.post("/assets/custom")
 async def add_custom_asset(asset: CustomAssetCreate):
@@ -313,6 +329,8 @@ async def get_asset_klines(
 ):
     """Get historical klines for any asset type"""
     klines = await multi_asset_service.generate_klines(symbol.upper(), interval, limit)
+    if not klines:
+        raise HTTPException(status_code=400, detail=f"No real-time klines available for {symbol.upper()}")
     return {
         "success": True,
         "symbol": symbol.upper(),
@@ -325,18 +343,23 @@ async def get_watchlist():
     """Get user's watchlist"""
     settings = await db.settings.find_one({"id": "default"}, {"_id": 0})
     if settings and "watchlist" in settings:
-        return {"watchlist": settings["watchlist"]}
+        live_watchlist = [s.upper() for s in settings["watchlist"] if multi_asset_service.get_asset_type(s) == "crypto"]
+        return {"watchlist": live_watchlist or ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT"]}
     return {"watchlist": ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT"]}
 
 @api_router.post("/watchlist")
 async def update_watchlist(watchlist: List[str]):
     """Update user's watchlist"""
+    live_watchlist = [s.upper() for s in watchlist if multi_asset_service.get_asset_type(s) == "crypto"]
+    if not live_watchlist:
+        live_watchlist = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "SOLUSDT", "XRPUSDT"]
+
     await db.settings.update_one(
         {"id": "default"},
-        {"$set": {"watchlist": watchlist}},
+        {"$set": {"watchlist": live_watchlist}},
         upsert=True
     )
-    return {"success": True, "watchlist": watchlist}
+    return {"success": True, "watchlist": live_watchlist}
 
 # ==================== MARKET DATA ====================
 
@@ -673,30 +696,53 @@ async def create_portfolio(portfolio: PortfolioCreate):
         current_capital=portfolio.initial_capital,
         currency=portfolio.currency
     )
-    
     doc = portfolio_obj.model_dump()
-    await db.portfolios.insert_one(doc)
-    
+    _portfolios_store[portfolio_obj.id] = doc
+    if await _check_mongo():
+        try:
+            await db.portfolios.insert_one(doc.copy())
+        except Exception:
+            pass
     return portfolio_obj
 
 @api_router.get("/portfolio/{portfolio_id}")
 async def get_portfolio(portfolio_id: str):
     """Get portfolio by ID"""
-    portfolio = await db.portfolios.find_one({"id": portfolio_id}, {"_id": 0})
-    if not portfolio:
-        raise HTTPException(status_code=404, detail="Portfolio not found")
-    return portfolio
+    if portfolio_id in _portfolios_store:
+        return _portfolios_store[portfolio_id]
+    if await _check_mongo():
+        try:
+            portfolio = await db.portfolios.find_one({"id": portfolio_id}, {"_id": 0})
+            if portfolio:
+                _portfolios_store[portfolio_id] = portfolio
+                return portfolio
+        except Exception:
+            pass
+    raise HTTPException(status_code=404, detail="Portfolio not found")
 
 @api_router.get("/portfolios")
 async def list_portfolios():
     """List all portfolios"""
-    portfolios = await db.portfolios.find({}, {"_id": 0}).to_list(100)
-    return {"portfolios": portfolios}
+    if await _check_mongo():
+        try:
+            portfolios = await db.portfolios.find({}, {"_id": 0}).to_list(100)
+            return {"portfolios": portfolios}
+        except Exception:
+            pass
+    return {"portfolios": list(_portfolios_store.values())}
 
 @api_router.post("/portfolio/{portfolio_id}/trade")
 async def execute_trade(portfolio_id: str, trade: TradeCreate):
     """Execute a trade in a portfolio"""
-    portfolio = await db.portfolios.find_one({"id": portfolio_id}, {"_id": 0})
+    # Fetch portfolio (in-memory first, then MongoDB)
+    portfolio = _portfolios_store.get(portfolio_id)
+    if portfolio is None and await _check_mongo():
+        try:
+            portfolio = await db.portfolios.find_one({"id": portfolio_id}, {"_id": 0})
+            if portfolio:
+                _portfolios_store[portfolio_id] = portfolio
+        except Exception:
+            pass
     if not portfolio:
         raise HTTPException(status_code=404, detail="Portfolio not found")
     
@@ -761,22 +807,37 @@ async def execute_trade(portfolio_id: str, trade: TradeCreate):
     # Update portfolio
     total_pnl = new_capital - portfolio["initial_capital"]
     total_pnl_pct = (total_pnl / portfolio["initial_capital"]) * 100
-    
-    await db.portfolios.update_one(
-        {"id": portfolio_id},
-        {
-            "$set": {
-                "current_capital": new_capital,
-                "positions": positions,
-                "total_pnl": total_pnl,
-                "total_pnl_pct": total_pnl_pct,
-                "updated_at": datetime.now(timezone.utc).isoformat()
-            }
-        }
-    )
-    
+
+    # Update in-memory store
+    trade_dict = trade_record.model_dump()
+    portfolio.update({
+        "current_capital": new_capital,
+        "positions": positions,
+        "total_pnl": total_pnl,
+        "total_pnl_pct": total_pnl_pct,
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    })
+    _portfolios_store[portfolio_id] = portfolio
+    _trades_store.setdefault(portfolio_id, []).insert(0, trade_dict)
+
+    if await _check_mongo():
+        try:
+            await db.trades.insert_one(trade_dict.copy())
+            await db.portfolios.update_one(
+                {"id": portfolio_id},
+                {"$set": {
+                    "current_capital": new_capital,
+                    "positions": positions,
+                    "total_pnl": total_pnl,
+                    "total_pnl_pct": total_pnl_pct,
+                    "updated_at": portfolio["updated_at"]
+                }}
+            )
+        except Exception:
+            pass
+
     return {
-        "trade": trade_record.model_dump(),
+        "trade": trade_dict,
         "updated_capital": new_capital,
         "positions": positions
     }
@@ -784,12 +845,18 @@ async def execute_trade(portfolio_id: str, trade: TradeCreate):
 @api_router.get("/portfolio/{portfolio_id}/trades")
 async def get_portfolio_trades(portfolio_id: str, limit: int = 50):
     """Get trade history for a portfolio"""
-    trades = await db.trades.find(
-        {"portfolio_id": portfolio_id}, 
-        {"_id": 0}
-    ).sort("timestamp", -1).to_list(limit)
-    
-    return {"trades": trades}
+    if portfolio_id in _trades_store:
+        return {"trades": _trades_store[portfolio_id][:limit]}
+    if await _check_mongo():
+        try:
+            trades = await db.trades.find(
+                {"portfolio_id": portfolio_id},
+                {"_id": 0}
+            ).sort("timestamp", -1).to_list(limit)
+            return {"trades": trades}
+        except Exception:
+            pass
+    return {"trades": []}
 
 # ==================== SETTINGS ====================
 
