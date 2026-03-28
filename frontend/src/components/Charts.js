@@ -5,7 +5,7 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
-  Tooltip,
+  Tooltip as RechartsTooltip,
   ResponsiveContainer,
   Area,
   AreaChart,
@@ -14,6 +14,12 @@ import {
   ReferenceLine
 } from 'recharts';
 import { useTradingContext } from '../context/TradingContext';
+import {
+  Tooltip as UiTooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from './ui/tooltip';
 
 // Format timestamp to readable date
 const formatDate = (timestamp) => {
@@ -98,6 +104,39 @@ export const PriceChart = ({ height = 300 }) => {
   
   return (
     <div className="w-full" style={{ height, minHeight: height }} data-testid="price-chart">
+      <TooltipProvider>
+        <div className="mb-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <span className="inline-block h-0.5 w-4 bg-[#00FF94]" />
+            Prix
+          </span>
+          {indicators?.ema_short && (
+            <UiTooltip>
+              <TooltipTrigger asChild>
+                <button type="button" className="flex items-center gap-1 cursor-help" aria-label="Aide EMA courte">
+                  <span className="inline-block h-0.5 w-4 border-t border-dashed border-[#007AFF]" />
+                  EMA courte
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                Moyenne mobile exponentielle rapide: réagit vite aux variations du prix.
+              </TooltipContent>
+            </UiTooltip>
+          )}
+          {indicators?.ema_long && (
+            <UiTooltip>
+              <TooltipTrigger asChild>
+                <button type="button" className="flex items-center gap-1 cursor-help" aria-label="Aide EMA longue">
+                  <span className="inline-block h-0.5 w-4 border-t border-dashed border-[#FFCC00]" />
+                  EMA longue
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                Moyenne mobile exponentielle lente: montre la tendance de fond.
+              </TooltipContent>
+            </UiTooltip>
+          )}
+        </div>
       <ResponsiveContainer width="100%" height={height}>
         <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
           <defs>
@@ -122,7 +161,7 @@ export const PriceChart = ({ height = 300 }) => {
             axisLine={{ stroke: '#27272A' }}
             width={80}
           />
-          <Tooltip content={<CustomTooltip />} />
+          <RechartsTooltip content={<CustomTooltip />} />
           <Area
             type="monotone"
             dataKey="close"
@@ -155,6 +194,7 @@ export const PriceChart = ({ height = 300 }) => {
           )}
         </AreaChart>
       </ResponsiveContainer>
+      </TooltipProvider>
     </div>
   );
 };
@@ -181,6 +221,42 @@ export const RSIChart = ({ height = 120 }) => {
   
   return (
     <div className="w-full" style={{ height, minHeight: height }} data-testid="rsi-chart">
+      <TooltipProvider>
+        <div className="mb-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+          <UiTooltip>
+            <TooltipTrigger asChild>
+              <button type="button" className="flex items-center gap-1 cursor-help" aria-label="Aide RSI">
+                <span className="inline-block h-0.5 w-4 bg-[#007AFF]" />
+                RSI
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              RSI: indique la force du momentum (0 à 100).
+            </TooltipContent>
+          </UiTooltip>
+          <UiTooltip>
+            <TooltipTrigger asChild>
+              <button type="button" className="flex items-center gap-1 cursor-help" aria-label="Aide RSI surachat">
+                <span className="inline-block h-0.5 w-4 border-t border-dashed border-[#FF3B30]" />
+                70 surachat
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              Zone de surachat: le prix peut être étiré à la hausse.
+            </TooltipContent>
+          </UiTooltip>
+          <UiTooltip>
+            <TooltipTrigger asChild>
+              <button type="button" className="flex items-center gap-1 cursor-help" aria-label="Aide RSI survente">
+                <span className="inline-block h-0.5 w-4 border-t border-dashed border-[#00FF94]" />
+                30 survente
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              Zone de survente: le prix peut être étiré à la baisse.
+            </TooltipContent>
+          </UiTooltip>
+        </div>
       <ResponsiveContainer width="100%" height={height}>
         <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
           <defs>
@@ -217,6 +293,7 @@ export const RSIChart = ({ height = 120 }) => {
           />
         </AreaChart>
       </ResponsiveContainer>
+      </TooltipProvider>
     </div>
   );
 };
@@ -245,6 +322,42 @@ export const MACDChart = ({ height = 120 }) => {
   
   return (
     <div className="w-full" style={{ height, minHeight: height }} data-testid="macd-chart">
+      <TooltipProvider>
+        <div className="mb-2 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+          <UiTooltip>
+            <TooltipTrigger asChild>
+              <button type="button" className="flex items-center gap-1 cursor-help" aria-label="Aide histogramme MACD">
+                <span className="inline-block h-2 w-4 rounded-sm bg-[#00FF94]" />
+                Histogramme
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              Différence entre MACD et sa ligne signal (barres vertes/rouges).
+            </TooltipContent>
+          </UiTooltip>
+          <UiTooltip>
+            <TooltipTrigger asChild>
+              <button type="button" className="flex items-center gap-1 cursor-help" aria-label="Aide ligne MACD">
+                <span className="inline-block h-0.5 w-4 bg-[#007AFF]" />
+                Ligne MACD
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              Ligne MACD: momentum court terme.
+            </TooltipContent>
+          </UiTooltip>
+          <UiTooltip>
+            <TooltipTrigger asChild>
+              <button type="button" className="flex items-center gap-1 cursor-help" aria-label="Aide ligne signal MACD">
+                <span className="inline-block h-0.5 w-4 bg-[#FFCC00]" />
+                Ligne signal
+              </button>
+            </TooltipTrigger>
+            <TooltipContent>
+              Moyenne de la MACD utilisée pour repérer les croisements.
+            </TooltipContent>
+          </UiTooltip>
+        </div>
       <ResponsiveContainer width="100%" height={height}>
         <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#27272A" vertical={false} />
@@ -292,6 +405,7 @@ export const MACDChart = ({ height = 120 }) => {
           />
         </ComposedChart>
       </ResponsiveContainer>
+      </TooltipProvider>
     </div>
   );
 };

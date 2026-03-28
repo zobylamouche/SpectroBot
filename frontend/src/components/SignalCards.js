@@ -5,10 +5,18 @@ import { useLanguage } from '../i18n';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip';
 
 export const SignalCard = () => {
   const { signal, loading, fetchSignal } = useTradingContext();
   const { t } = useLanguage();
+
+  const strategyHelp = {
+    ema_crossover: "Compare le croisement entre EMA courte et EMA longue.",
+    ema_rsi: "Combine tendance EMA et momentum RSI.",
+    macd: "Détecte les changements de momentum via MACD.",
+    supertrend: "Suit les bascules de tendance via SuperTrend.",
+  };
   
   const getSignalColor = (sig) => {
     switch (sig?.toUpperCase()) {
@@ -36,6 +44,7 @@ export const SignalCard = () => {
   
   return (
     <Card className="bg-card border-border" data-testid="signal-card">
+      <TooltipProvider>
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
           <Sparkles className="w-4 h-4" />
@@ -53,18 +62,32 @@ export const SignalCard = () => {
               <div className="flex items-center gap-3">
                 {getSignalIcon(signal.signal?.signal)}
                 <div>
-                  <Badge className={`text-lg px-3 py-1 ${getSignalColor(signal.signal?.signal)}`}>
-                    {translateSignal(signal.signal?.signal)}
-                  </Badge>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge className={`text-lg px-3 py-1 cursor-help ${getSignalColor(signal.signal?.signal)}`}>
+                        {translateSignal(signal.signal?.signal)}
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      Signal calculé à partir des indicateurs techniques (EMA, RSI, MACD, SuperTrend).
+                    </TooltipContent>
+                  </Tooltip>
                   <p className="text-xs text-muted-foreground mt-1">
                     {t('strategies.' + (signal.strategy || 'composite'))}
                   </p>
                 </div>
               </div>
               <div className="text-right">
-                <p className="font-mono text-2xl font-bold text-white">
-                  {((signal.signal?.confidence || 0) * 100).toFixed(0)}%
-                </p>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <p className="font-mono text-2xl font-bold text-white cursor-help">
+                      {((signal.signal?.confidence || 0) * 100).toFixed(0)}%
+                    </p>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    Confiance du signal composite (plus c'est élevé, plus les stratégies convergent).
+                  </TooltipContent>
+                </Tooltip>
                 <p className="text-xs text-muted-foreground">{t('dashboard.confidence')}</p>
               </div>
             </div>
@@ -73,12 +96,26 @@ export const SignalCard = () => {
               <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border">
                 {Object.entries(signal.signal.individual_signals).map(([strategy, sig]) => (
                   <div key={strategy} className="flex items-center justify-between text-xs">
-                    <span className="text-muted-foreground capitalize">
-                      {t('strategies.' + strategy) || strategy.replace('_', ' ')}
-                    </span>
-                    <Badge variant="outline" className={`text-xs ${getSignalColor(sig)}`}>
-                      {translateSignal(sig)}
-                    </Badge>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="text-muted-foreground capitalize cursor-help">
+                          {t('strategies.' + strategy) || strategy.replace('_', ' ')}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        {strategyHelp[strategy] || "Signal généré par cette sous-stratégie."}
+                      </TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Badge variant="outline" className={`text-xs cursor-help ${getSignalColor(sig)}`}>
+                          {translateSignal(sig)}
+                        </Badge>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        Décision de cette sous-stratégie pour la dernière bougie.
+                      </TooltipContent>
+                    </Tooltip>
                   </div>
                 ))}
               </div>
@@ -100,6 +137,7 @@ export const SignalCard = () => {
           </div>
         )}
       </CardContent>
+      </TooltipProvider>
     </Card>
   );
 };
@@ -118,6 +156,7 @@ export const MLPredictionCard = () => {
   
   return (
     <Card className="bg-card border-border" data-testid="ml-prediction-card">
+      <TooltipProvider>
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
           <Brain className="w-4 h-4" />
@@ -141,52 +180,87 @@ export const MLPredictionCard = () => {
                   <ArrowDownCircle className="w-8 h-8 text-neon-red" />
                 )}
                 <div>
-                  <Badge className={`text-lg px-3 py-1 ${
-                    mlPrediction.prediction.direction === 'UP'
-                      ? 'bg-neon-green/20 text-neon-green border-neon-green/30'
-                      : 'bg-neon-red/20 text-neon-red border-neon-red/30'
-                  }`}>
-                    {mlPrediction.prediction.direction === 'UP' ? t('signals.up') : t('signals.down')}
-                  </Badge>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Badge className={`text-lg px-3 py-1 cursor-help ${
+                        mlPrediction.prediction.direction === 'UP'
+                          ? 'bg-neon-green/20 text-neon-green border-neon-green/30'
+                          : 'bg-neon-red/20 text-neon-red border-neon-red/30'
+                      }`}>
+                        {mlPrediction.prediction.direction === 'UP' ? t('signals.up') : t('signals.down')}
+                      </Badge>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      Direction prédite par le modèle ML sur l'horizon à court terme.
+                    </TooltipContent>
+                  </Tooltip>
                 </div>
               </div>
               <div className="text-right">
-                <p className="font-mono text-2xl font-bold text-white">
-                  {(mlPrediction.prediction.direction_probability * 100).toFixed(0)}%
-                </p>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <p className="font-mono text-2xl font-bold text-white cursor-help">
+                      {(mlPrediction.prediction.direction_probability * 100).toFixed(0)}%
+                    </p>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    Probabilité de la direction prédite par le classifieur.
+                  </TooltipContent>
+                </Tooltip>
                 <p className="text-xs text-muted-foreground">{t('dashboard.confidence')}</p>
               </div>
             </div>
             
             <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border">
-              <div className="bg-secondary/50 rounded-lg p-2">
-                <p className="text-xs text-muted-foreground">{t('dashboard.predictedChange')}</p>
-                <p className={`font-mono text-sm font-bold ${
-                  mlPrediction.prediction.predicted_price_change_pct >= 0 
-                    ? 'text-neon-green' 
-                    : 'text-neon-red'
-                }`}>
-                  {mlPrediction.prediction.predicted_price_change_pct >= 0 ? '+' : ''}
-                  {mlPrediction.prediction.predicted_price_change_pct.toFixed(2)}%
-                </p>
-              </div>
-              <div className="bg-secondary/50 rounded-lg p-2">
-                <p className="text-xs text-muted-foreground">{t('dashboard.targetPrice')}</p>
-                <p className="font-mono text-sm font-bold text-white">
-                  ${mlPrediction.prediction.predicted_price?.toLocaleString()}
-                </p>
-              </div>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="bg-secondary/50 rounded-lg p-2 cursor-help">
+                    <p className="text-xs text-muted-foreground">{t('dashboard.predictedChange')}</p>
+                    <p className={`font-mono text-sm font-bold ${
+                      mlPrediction.prediction.predicted_price_change_pct >= 0 
+                        ? 'text-neon-green' 
+                        : 'text-neon-red'
+                    }`}>
+                      {mlPrediction.prediction.predicted_price_change_pct >= 0 ? '+' : ''}
+                      {mlPrediction.prediction.predicted_price_change_pct.toFixed(2)}%
+                    </p>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  Variation de prix estimée par le modèle de régression.
+                </TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="bg-secondary/50 rounded-lg p-2 cursor-help">
+                    <p className="text-xs text-muted-foreground">{t('dashboard.targetPrice')}</p>
+                    <p className="font-mono text-sm font-bold text-white">
+                      ${mlPrediction.prediction.predicted_price?.toLocaleString()}
+                    </p>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  Prix cible estimé = prix actuel + variation prédite.
+                </TooltipContent>
+              </Tooltip>
             </div>
             
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="w-full"
-              onClick={handleTrain}
-              data-testid="train-ml-btn"
-            >
-              {t('dashboard.retrainPredict')}
-            </Button>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="w-full"
+                  onClick={handleTrain}
+                  data-testid="train-ml-btn"
+                >
+                  {t('dashboard.retrainPredict')}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                Relance l'entraînement ML avec les dernières bougies puis met à jour la prédiction.
+              </TooltipContent>
+            </Tooltip>
           </div>
         ) : (
           <div className="space-y-4">
@@ -205,6 +279,7 @@ export const MLPredictionCard = () => {
           </div>
         )}
       </CardContent>
+      </TooltipProvider>
     </Card>
   );
 };
