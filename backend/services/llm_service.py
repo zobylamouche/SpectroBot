@@ -173,7 +173,8 @@ async def _query_openai(system_message: str, user_prompt: str) -> Dict:
 async def _query_ollama(system_message: str, user_prompt: str) -> Dict:
     try:
         async with httpx.AsyncClient(timeout=90.0) as client:
-            response = await client.post(
+            # Try modern chat endpoint first.
+            chat_response = await client.post(
                 f"{OLLAMA_BASE_URL.rstrip('/')}/api/chat",
                 json={
                     "model": OLLAMA_MODEL,
@@ -184,9 +185,24 @@ async def _query_ollama(system_message: str, user_prompt: str) -> Dict:
                     "stream": False,
                 },
             )
-            response.raise_for_status()
-            data = response.json()
-            content = (data.get("message") or {}).get("content", "").strip()
+            if chat_response.status_code < 400:
+                data = chat_response.json()
+                content = (data.get("message") or {}).get("content", "").strip()
+                if content:
+                    return {"success": True, "content": content, "provider": "ollama", "model": OLLAMA_MODEL}
+
+            # Compatibility fallback for older Ollama APIs.
+            generate_response = await client.post(
+                f"{OLLAMA_BASE_URL.rstrip('/')}/api/generate",
+                json={
+                    "model": OLLAMA_MODEL,
+                    "prompt": f"System: {system_message}\n\nUser: {user_prompt}",
+                    "stream": False,
+                },
+            )
+            generate_response.raise_for_status()
+            gen_data = generate_response.json()
+            content = (gen_data.get("response") or "").strip()
             if not content:
                 return {"success": False, "error": "Empty Ollama response"}
             return {"success": True, "content": content, "provider": "ollama", "model": OLLAMA_MODEL}
