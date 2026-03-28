@@ -100,6 +100,18 @@ prepare_env_file() {
   fi
 }
 
+get_env_value() {
+  local key="$1"
+  local default_value="$2"
+  local value
+  value="$(grep "^${key}=" "$APP_DIR/.env" | head -n1 | cut -d'=' -f2- || true)"
+  if [[ -z "$value" ]]; then
+    echo "$default_value"
+  else
+    echo "$value"
+  fi
+}
+
 wait_http() {
   local url="$1"
   local name="$2"
@@ -130,16 +142,24 @@ main() {
 
   cd "$APP_DIR"
 
+  log "Validation de la configuration compose"
+  $COMPOSE config >/dev/null
+
   log "Build et lancement des conteneurs"
   $COMPOSE up --build -d
 
+  local backend_port
+  local frontend_port
+  backend_port="$(get_env_value BACKEND_PORT 8001)"
+  frontend_port="$(get_env_value FRONTEND_PORT 3000)"
+
   log "Verification sante services"
-  wait_http "http://localhost:8001/api/health" "Backend"
-  wait_http "http://localhost:3000" "Frontend"
+  wait_http "http://localhost:${backend_port}/api/health" "Backend"
+  wait_http "http://localhost:${frontend_port}" "Frontend"
 
   log "Deploiement termine"
-  log "Frontend: http://<IP_VM>:3000"
-  log "Backend:  http://<IP_VM>:8001/api/health"
+  log "Frontend: http://<IP_VM>:${frontend_port}"
+  log "Backend:  http://<IP_VM>:${backend_port}/api/health"
   log "Logs:     $COMPOSE logs -f backend frontend mongo"
 }
 
