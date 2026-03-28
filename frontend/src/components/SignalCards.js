@@ -125,7 +125,7 @@ export const MLPredictionCard = () => {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        {loading.ml || isTraining ? (
+        {isTraining || (loading.ml && !mlPrediction) ? (
           <div className="flex items-center justify-center h-32">
             <div className="animate-pulse text-muted-foreground">
               {isTraining ? t('common.loading') : t('common.loading')}

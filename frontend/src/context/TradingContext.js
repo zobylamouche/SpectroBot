@@ -268,8 +268,9 @@ export const TradingProvider = ({ children }) => {
     }
   }, [selectedSymbol, timeInterval]);
   
-  const fetchMLPrediction = useCallback(async (symbol = selectedSymbol) => {
-    setLoading(prev => ({ ...prev, ml: true }));
+  const fetchMLPrediction = useCallback(async (symbol = selectedSymbol, options = {}) => {
+    const { silent = false } = options;
+    if (!silent) setLoading(prev => ({ ...prev, ml: true }));
     try {
       const response = await fetch(`${API}/ml/predict?symbol=${symbol}&interval=${timeInterval}&limit=100`, {
         method: 'POST',
@@ -282,7 +283,7 @@ export const TradingProvider = ({ children }) => {
       console.error('Error fetching ML prediction:', error);
       return null;
     } finally {
-      setLoading(prev => ({ ...prev, ml: false }));
+      if (!silent) setLoading(prev => ({ ...prev, ml: false }));
     }
   }, [selectedSymbol, timeInterval]);
   
@@ -455,7 +456,7 @@ export const TradingProvider = ({ children }) => {
 
       // Refresh ML prediction less frequently to reduce load.
       mlRefreshRef.current = setInterval(() => {
-        fetchMLPrediction(selectedSymbol);
+        fetchMLPrediction(selectedSymbol, { silent: true });
       }, 15000);
     }
     return () => {
