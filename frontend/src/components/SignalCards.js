@@ -316,7 +316,15 @@ export const AIAnalysisCard = () => {
             <div className="animate-pulse text-muted-foreground">{t('dashboard.generatingAnalysis')}</div>
           </div>
         ) : aiAnalysis?.llm_analysis?.success ? (
-          <div className="prose prose-invert prose-sm max-w-none">
+          <div className="prose prose-invert prose-sm max-w-none space-y-3">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="rounded-md border border-border bg-secondary/40 px-2 py-1">
+                Provider: {aiAnalysis?.llm_analysis?.provider || 'unknown'}
+              </span>
+              <span className="rounded-md border border-border bg-secondary/40 px-2 py-1">
+                Model: {aiAnalysis?.llm_analysis?.model || 'unknown'}
+              </span>
+            </div>
             <div className="text-sm text-white/90 whitespace-pre-wrap leading-relaxed">
               {aiAnalysis.llm_analysis.analysis}
             </div>

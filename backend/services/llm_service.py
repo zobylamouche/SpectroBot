@@ -207,8 +207,9 @@ async def _query_ollama(system_message: str, user_prompt: str) -> Dict:
                 return {"success": False, "error": "Empty Ollama response"}
             return {"success": True, "content": content, "provider": "ollama", "model": OLLAMA_MODEL}
     except Exception as e:
-        logger.error(f"Ollama error: {str(e)}")
-        return {"success": False, "error": str(e)}
+        err = (str(e) or repr(e) or "unknown ollama error").strip()
+        logger.error(f"Ollama error: {err}")
+        return {"success": False, "error": f"Ollama request failed: {err}"}
 
 
 async def _query_hybrid(system_message: str, user_prompt: str) -> Dict:
