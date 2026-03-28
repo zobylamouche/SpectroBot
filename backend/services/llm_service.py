@@ -7,12 +7,16 @@ import os
 import logging
 from typing import Dict, List, Optional
 from dotenv import load_dotenv
+import httpx
 from openai import AsyncOpenAI
 
 load_dotenv()
 logger = logging.getLogger(__name__)
 
 OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4.1-mini")
+OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://ollama:11434")
+OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.2:3b")
+ENABLE_OLLAMA_FALLBACK = os.environ.get("ENABLE_OLLAMA_FALLBACK", "true").lower() == "true"
 
 # Language-specific system messages
 SYSTEM_MESSAGES = {
@@ -143,6 +147,69 @@ Provide:
 Keep the response concise and professional."""
 
 
+async def _query_openai(system_message: str, user_prompt: str) -> Dict:
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        return {"success": False, "error": "OPENAI_API_KEY not configured"}
+
+    try:
+        client = AsyncOpenAI(api_key=api_key)
+        completion = await client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=[
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": user_prompt},
+            ],
+        )
+        response = (completion.choices[0].message.content or "").strip()
+        if not response:
+            return {"success": False, "error": "Empty OpenAI response"}
+        return {"success": True, "content": response, "provider": "openai", "model": OPENAI_MODEL}
+    except Exception as e:
+        logger.error(f"OpenAI error: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+async def _query_ollama(system_message: str, user_prompt: str) -> Dict:
+    try:
+        async with httpx.AsyncClient(timeout=90.0) as client:
+            response = await client.post(
+                f"{OLLAMA_BASE_URL.rstrip('/')}/api/chat",
+                json={
+                    "model": OLLAMA_MODEL,
+                    "messages": [
+                        {"role": "system", "content": system_message},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    "stream": False,
+                },
+            )
+            response.raise_for_status()
+            data = response.json()
+            content = (data.get("message") or {}).get("content", "").strip()
+            if not content:
+                return {"success": False, "error": "Empty Ollama response"}
+            return {"success": True, "content": content, "provider": "ollama", "model": OLLAMA_MODEL}
+    except Exception as e:
+        logger.error(f"Ollama error: {str(e)}")
+        return {"success": False, "error": str(e)}
+
+
+async def _query_hybrid(system_message: str, user_prompt: str) -> Dict:
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if api_key:
+        openai_result = await _query_openai(system_message, user_prompt)
+        if openai_result.get("success"):
+            return openai_result
+        if not ENABLE_OLLAMA_FALLBACK:
+            return openai_result
+
+    if not ENABLE_OLLAMA_FALLBACK:
+        return {"success": False, "error": "No LLM provider available"}
+
+    return await _query_ollama(system_message, user_prompt)
+
+
 async def analyze_market_with_llm(
     symbol: str,
     current_price: float,
@@ -158,13 +225,6 @@ async def analyze_market_with_llm(
     Supports multiple languages: English, French, Spanish, German
     """
     try:
-        api_key = os.environ.get("OPENAI_API_KEY")
-        if not api_key:
-            return {
-                "success": False,
-                "error": "OPENAI_API_KEY not configured"
-            }
-        
         # Build analysis prompt
         rsi_value = indicators.get("rsi", [None])[-1] if indicators.get("rsi") else None
         macd_hist = indicators.get("macd", {}).get("histogram", [None])[-1] if indicators.get("macd") else None
@@ -179,21 +239,18 @@ async def analyze_market_with_llm(
         # Get language-specific system message
         system_message = SYSTEM_MESSAGES.get(language, SYSTEM_MESSAGES["English"])
 
-        client = AsyncOpenAI(api_key=api_key)
-        completion = await client.chat.completions.create(
-            model=OPENAI_MODEL,
-            messages=[
-                {"role": "system", "content": system_message},
-                {"role": "user", "content": analysis_prompt},
-            ],
-        )
-        response = (completion.choices[0].message.content or "").strip()
+        llm_result = await _query_hybrid(system_message, analysis_prompt)
+        if not llm_result.get("success"):
+            return llm_result
+        response = llm_result.get("content", "")
         
         return {
             "success": True,
             "analysis": response,
             "symbol": symbol,
             "language": language,
+            "provider": llm_result.get("provider"),
+            "model": llm_result.get("model"),
             "timestamp": None  # Will be set by caller
         }
         
@@ -218,13 +275,6 @@ async def explain_trading_decision(
     Supports multiple languages
     """
     try:
-        api_key = os.environ.get("OPENAI_API_KEY")
-        if not api_key:
-            return {
-                "success": False,
-                "error": "OPENAI_API_KEY not configured"
-            }
-        
         # Language-specific explain prompts
         if language == "French":
             explain_prompt = f"""Expliquez ce signal de trading pour {symbol} en termes simples:
@@ -268,21 +318,18 @@ Indicator Summary:
 Provide a 2-3 sentence explanation that a retail trader would understand."""
 
         system_message = SYSTEM_MESSAGES.get(language, SYSTEM_MESSAGES["English"])
-        
-        client = AsyncOpenAI(api_key=api_key)
-        completion = await client.chat.completions.create(
-            model=OPENAI_MODEL,
-            messages=[
-                {"role": "system", "content": system_message},
-                {"role": "user", "content": explain_prompt},
-            ],
-        )
-        response = (completion.choices[0].message.content or "").strip()
+
+        llm_result = await _query_hybrid(system_message, explain_prompt)
+        if not llm_result.get("success"):
+            return llm_result
+        response = llm_result.get("content", "")
         
         return {
             "success": True,
             "explanation": response,
-            "language": language
+            "language": language,
+            "provider": llm_result.get("provider"),
+            "model": llm_result.get("model")
         }
         
     except Exception as e:

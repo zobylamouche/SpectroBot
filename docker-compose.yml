@@ -26,10 +26,15 @@ services:
       DB_NAME: spectrobot
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4.1-mini}
+      ENABLE_OLLAMA_FALLBACK: ${ENABLE_OLLAMA_FALLBACK:-true}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:3b}
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
     depends_on:
       mongo:
         condition: service_healthy
+      ollama:
+        condition: service_started
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/api/health')"]
       interval: 15s
@@ -37,6 +42,17 @@ services:
       retries: 10
     ports:
       - "${BACKEND_PORT:-8001}:8001"
+    networks:
+      - spectrobot_net
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: spectrobot-ollama
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
     networks:
       - spectrobot_net
 
@@ -63,6 +79,7 @@ services:
 
 volumes:
   mongo_data:
+  ollama_data:
 
 networks:
   spectrobot_net:
