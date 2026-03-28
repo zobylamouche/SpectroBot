@@ -16,137 +16,56 @@ logger = logging.getLogger(__name__)
 OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4.1-mini")
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://ollama:11434")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.2:3b")
-OLLAMA_TIMEOUT_SECONDS = float(os.environ.get("OLLAMA_TIMEOUT_SECONDS", "180"))
+OLLAMA_TIMEOUT_SECONDS = float(os.environ.get("OLLAMA_TIMEOUT_SECONDS", "360"))
+OLLAMA_NUM_PREDICT = int(os.environ.get("OLLAMA_NUM_PREDICT", "250"))
 ENABLE_OLLAMA_FALLBACK = os.environ.get("ENABLE_OLLAMA_FALLBACK", "true").lower() == "true"
 
 # Language-specific system messages
 SYSTEM_MESSAGES = {
-    "English": "You are SpectroBot AI, a professional cryptocurrency trading analyst. Provide concise, data-driven analysis without disclaimers about financial advice. Respond in English.",
-    "French": "Vous êtes SpectroBot AI, un analyste professionnel de trading de cryptomonnaies. Fournissez une analyse concise et basée sur les données, sans avertissements sur les conseils financiers. Répondez en français.",
-    "Spanish": "Eres SpectroBot AI, un analista profesional de trading de criptomonedas. Proporciona análisis concisos basados en datos, sin descargos de responsabilidad sobre consejos financieros. Responde en español.",
-    "German": "Sie sind SpectroBot AI, ein professioneller Kryptowährungs-Trading-Analyst. Geben Sie prägnante, datengestützte Analysen ohne Haftungsausschlüsse bezüglich Finanzberatung. Antworten Sie auf Deutsch."
+    "English": "Crypto trading analyst. Be very brief. No disclaimers.",
+    "French": "Analyste crypto. Soyez très bref. Pas d'avertissements.",
+    "Spanish": "Analista crypto. Sé muy breve. Sin advertencias.",
+    "German": "Krypto-Analyst. Sehr kurz antworten. Keine Haftungshinweise.",
 }
 
 # Language-specific prompts
-def get_analysis_prompt(language: str, symbol: str, current_price: float, price_change_24h: float, 
-                        rsi_value, macd_hist, supertrend_dir, ml_prediction: Dict, strategy_signal: Dict) -> str:
-    
+
+def get_analysis_prompt(language, symbol, current_price, price_change_24h,
+                        rsi_value, macd_hist, supertrend_dir, ml_prediction, strategy_signal):
+    rsi_str = f"{rsi_value:.0f}" if rsi_value is not None else "N/A"
+    macd_str = "+" if macd_hist and macd_hist > 0 else ("-" if macd_hist is not None else "N/A")
+    st_raw = {1: "haussier", -1: "baissier"}.get(supertrend_dir, "?")
+    sig = strategy_signal.get("signal", "?")
+    conf = strategy_signal.get("confidence", 0) * 100
+
     if language == "French":
-        return f"""Analysez les données de trading crypto suivantes et fournissez une recommandation actionnable :
-
-**Symbole:** {symbol}
-**Prix actuel:** ${current_price:,.2f}
-**Variation 24h:** {price_change_24h:+.2f}%
-
-**Indicateurs Techniques:**
-- RSI (14): {rsi_value if rsi_value else 'N/A'}
-- Histogramme MACD: {macd_hist if macd_hist else 'N/A'}
-- Direction SuperTrend: {'Haussier' if supertrend_dir == 1 else 'Baissier' if supertrend_dir == -1 else 'N/A'}
-
-**Prédiction ML:**
-- Direction: {ml_prediction.get('direction', 'N/A')}
-- Confiance: {ml_prediction.get('direction_probability', 0) * 100:.1f}%
-- Variation de prix prédite: {ml_prediction.get('predicted_price_change_pct', 0):.2f}%
-
-**Signal de Stratégie:**
-- Signal: {strategy_signal.get('signal', 'N/A')}
-- Confiance: {strategy_signal.get('confidence', 0) * 100:.1f}%
-
-Fournissez:
-1. Sentiment du marché (1 phrase)
-2. Facteurs de risque clés (1-2 points)
-3. Recommandation de trading (ACHAT/VENTE/ATTENTE) avec raisonnement bref
-4. Niveaux suggérés de stop-loss et take-profit (% du prix actuel)
-
-Restez concis et professionnel."""
-
-    elif language == "Spanish":
-        return f"""Analice los siguientes datos de trading de cripto y proporcione una recomendación accionable:
-
-**Símbolo:** {symbol}
-**Precio actual:** ${current_price:,.2f}
-**Cambio 24h:** {price_change_24h:+.2f}%
-
-**Indicadores Técnicos:**
-- RSI (14): {rsi_value if rsi_value else 'N/A'}
-- Histograma MACD: {macd_hist if macd_hist else 'N/A'}
-- Dirección SuperTrend: {'Alcista' if supertrend_dir == 1 else 'Bajista' if supertrend_dir == -1 else 'N/A'}
-
-**Predicción ML:**
-- Dirección: {ml_prediction.get('direction', 'N/A')}
-- Confianza: {ml_prediction.get('direction_probability', 0) * 100:.1f}%
-- Cambio de precio predicho: {ml_prediction.get('predicted_price_change_pct', 0):.2f}%
-
-**Señal de Estrategia:**
-- Señal: {strategy_signal.get('signal', 'N/A')}
-- Confianza: {strategy_signal.get('confidence', 0) * 100:.1f}%
-
-Proporcione:
-1. Sentimiento del mercado (1 frase)
-2. Factores de riesgo clave (1-2 puntos)
-3. Recomendación de trading (COMPRA/VENTA/ESPERAR) con razonamiento breve
-4. Niveles sugeridos de stop-loss y take-profit (% del precio actual)
-
-Sea conciso y profesional."""
-
-    elif language == "German":
-        return f"""Analysieren Sie die folgenden Krypto-Trading-Daten und geben Sie eine umsetzbare Empfehlung:
-
-**Symbol:** {symbol}
-**Aktueller Preis:** ${current_price:,.2f}
-**24h-Änderung:** {price_change_24h:+.2f}%
-
-**Technische Indikatoren:**
-- RSI (14): {rsi_value if rsi_value else 'N/A'}
-- MACD-Histogramm: {macd_hist if macd_hist else 'N/A'}
-- SuperTrend-Richtung: {'Bullisch' if supertrend_dir == 1 else 'Bärisch' if supertrend_dir == -1 else 'N/A'}
-
-**ML-Vorhersage:**
-- Richtung: {ml_prediction.get('direction', 'N/A')}
-- Konfidenz: {ml_prediction.get('direction_probability', 0) * 100:.1f}%
-- Vorhergesagte Preisänderung: {ml_prediction.get('predicted_price_change_pct', 0):.2f}%
-
-**Strategiesignal:**
-- Signal: {strategy_signal.get('signal', 'N/A')}
-- Konfidenz: {strategy_signal.get('confidence', 0) * 100:.1f}%
-
-Liefern Sie:
-1. Marktstimmung (1 Satz)
-2. Wichtige Risikofaktoren (1-2 Punkte)
-3. Trading-Empfehlung (KAUFEN/VERKAUFEN/HALTEN) mit kurzer Begründung
-4. Vorgeschlagene Stop-Loss- und Take-Profit-Levels (% vom aktuellen Preis)
-
-Bleiben Sie prägnant und professionell."""
-
-    else:  # English (default)
-        return f"""Analyze the following cryptocurrency trading data and provide a brief, actionable trading recommendation:
-
-**Symbol:** {symbol}
-**Current Price:** ${current_price:,.2f}
-**24h Change:** {price_change_24h:+.2f}%
-
-**Technical Indicators:**
-- RSI (14): {rsi_value if rsi_value else 'N/A'}
-- MACD Histogram: {macd_hist if macd_hist else 'N/A'}
-- SuperTrend Direction: {'Bullish' if supertrend_dir == 1 else 'Bearish' if supertrend_dir == -1 else 'N/A'}
-
-**ML Prediction:**
-- Direction: {ml_prediction.get('direction', 'N/A')}
-- Confidence: {ml_prediction.get('direction_probability', 0) * 100:.1f}%
-- Predicted Price Change: {ml_prediction.get('predicted_price_change_pct', 0):.2f}%
-
-**Strategy Signal:**
-- Signal: {strategy_signal.get('signal', 'N/A')}
-- Confidence: {strategy_signal.get('confidence', 0) * 100:.1f}%
-
-Provide:
-1. Market sentiment (1 sentence)
-2. Key risk factors (1-2 points)
-3. Trading recommendation (BUY/SELL/HOLD) with brief reasoning
-4. Suggested stop-loss and take-profit levels (% from current price)
-
-Keep the response concise and professional."""
-
+        st_str = st_raw
+        return (
+            f"{symbol} ${current_price:,.2f} ({price_change_24h:+.2f}%) | "
+            f"RSI:{rsi_str} MACD:{macd_str} ST:{st_str} | Signal:{sig} {conf:.0f}%\n"
+            f"En 3 points tres brefs: 1)ACHAT/VENTE/ATTENTE + raison 2)Risque 3)Stop-loss% et TP%"
+        )
+    if language == "Spanish":
+        st_str = {"haussier": "alza", "baissier": "baja"}.get(st_raw, st_raw)
+        return (
+            f"{symbol} ${current_price:,.2f} ({price_change_24h:+.2f}%) | "
+            f"RSI:{rsi_str} MACD:{macd_str} ST:{st_str} | Signal:{sig} {conf:.0f}%\n"
+            f"3 puntos breves: 1)COMPRA/VENTA/ESPERAR + razon 2)Riesgo 3)Stop-loss% y TP%"
+        )
+    if language == "German":
+        st_str = {"haussier": "bullisch", "baissier": "baerisch"}.get(st_raw, st_raw)
+        return (
+            f"{symbol} ${current_price:,.2f} ({price_change_24h:+.2f}%) | "
+            f"RSI:{rsi_str} MACD:{macd_str} ST:{st_str} | Signal:{sig} {conf:.0f}%\n"
+            f"3 kurze Punkte: 1)KAUFEN/VERKAUFEN/HALTEN + Grund 2)Risiko 3)Stop-Loss% und TP%"
+        )
+    # English default
+    st_str = {"haussier": "bullish", "baissier": "bearish"}.get(st_raw, st_raw)
+    return (
+        f"{symbol} ${current_price:,.2f} ({price_change_24h:+.2f}%) | "
+        f"RSI:{rsi_str} MACD:{macd_str} ST:{st_str} | Signal:{sig} {conf:.0f}%\n"
+        f"3 brief points: 1)BUY/SELL/HOLD + reason 2)Main risk 3)Stop-loss% and TP%"
+    )
 
 async def _query_openai(system_message: str, user_prompt: str) -> Dict:
     api_key = os.environ.get("OPENAI_API_KEY")
@@ -184,6 +103,8 @@ async def _query_ollama(system_message: str, user_prompt: str) -> Dict:
                         {"role": "user", "content": user_prompt},
                     ],
                     "stream": False,
+                    "keep_alive": -1,
+                    "options": {"num_predict": OLLAMA_NUM_PREDICT},
                 },
             )
             if chat_response.status_code < 400:
@@ -199,6 +120,8 @@ async def _query_ollama(system_message: str, user_prompt: str) -> Dict:
                     "model": OLLAMA_MODEL,
                     "prompt": f"System: {system_message}\n\nUser: {user_prompt}",
                     "stream": False,
+                    "keep_alive": -1,
+                    "options": {"num_predict": OLLAMA_NUM_PREDICT},
                 },
             )
             generate_response.raise_for_status()
