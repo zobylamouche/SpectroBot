@@ -453,7 +453,7 @@ export const EquityCurveChart = ({ data, height = 200 }) => {
             axisLine={{ stroke: '#27272A' }}
             width={70}
           />
-          <Tooltip 
+          <RechartsTooltip 
             content={({ active, payload }) => {
               if (active && payload && payload.length) {
                 return (
